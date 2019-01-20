@@ -1,0 +1,9 @@
+cfgrib
+cython
+dask
+matplotlib
+pandas
+pyproj
+numpy
+toolz
+xarray
