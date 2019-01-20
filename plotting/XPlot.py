@@ -1,6 +1,6 @@
 """ Classes for plotting xarray data. """
 import logging
-
+from os import path
 from matplotlib.animation import FuncAnimation
 from mpl_toolkits.basemap import Basemap
 from pandas import Timestamp
@@ -14,16 +14,22 @@ import xarray as xr
 class XPlot:
     """ Class to plot and animate xarray datasets. """
 
-    def __init__(self, dataset, parameter, data_selection=None, accumulation=False, vmin=0, vmax=1):
+    def __init__(self, dataset, parameter, data_selection=None, save=False, accumulation=False, vmin=0, vmax=1):
         """
         :param dataset: An xarray.Dataset object with dimensions
                             time, latitude, and longitude.
         :param parameter: The name of the parameter to plot.
         :param data_selection: A dictionary of {dimension: slice}
+        :param save: A boolean indicating whether to save the animation to the animations directory.
+        :param accumulation: Boolean indicate whether to plot the accumulation of parameter up to the current time
+                                step rather than the the parameter data of that time step. (Plotting Total Precip.)
+        :param vmin: The minimum value of the color bar.
+        :param vmax: The maximum value of the color bar.
         """
         self.dataset = dataset
         self.parameter = parameter
         self.selection = {} if data_selection is None else data_selection
+        self.save = save
         self.accumulation = accumulation
         self.vmin = vmin
         self.vmax = vmax
@@ -44,6 +50,10 @@ class XPlot:
         _animation = FuncAnimation(figure, animator, init_func=animator.initialize,
                                    frames=len(animation_dataset.time), interval=500,
                                    repeat_delay=1000, blit=False)
+        if self.save:
+            file_name = f"{self.dataset.get(self.parameter).full_name.lower().replace(' ', '_')}.mp4"
+            animations_dir = path.join(path.dirname(__file__), 'animations')
+            _animation.save(path.join(animations_dir, file_name))
         plt.show()
 
 
@@ -57,6 +67,10 @@ class Animator:
         :param parameter: The name of the parameter to animate.
         :param figure: The matplotlib Figure object.
         :param axes: The matplotlib Axes object corresponding to figure.
+        :param accumulation: Boolean indicate whether to plot the accumulation of parameter up to the current time
+                                step rather than the the parameter data of that time step. (Plotting Total Precip.)
+        :param vmin: The minimum value of the color bar.
+        :param vmax: The maximum value of the color bar.
         """
         self.dataset = dataset
         self.parameter = parameter
@@ -70,9 +84,9 @@ class Animator:
         self.parameter_name = self.dataset.get(self.parameter).full_name
         self.units = self.dataset.get(self.parameter).units
         self.dates = [Timestamp(date.data).to_pydatetime()
-                      for date in self.dataset.time]
+                      for date in self.dataset.valid_time]
         self.lons, self.lats = np.meshgrid(self.dataset.longitude, self.dataset.latitude)
-        self.max_frame = len(self.dataset.time)
+        self.max_frame = len(self.dates)
 
         self.map = None
         self.quad = None
