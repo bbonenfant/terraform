@@ -1,9 +1,9 @@
-cfgrib
-cython
-dask
-matplotlib
-pandas
-pyproj
-numpy
-toolz
-xarray
+cfgrib      # Reading Gribs.
+cython      # C-Extensions.
+dask        # XArray Dependency.
+matplotlib  # Plotting.
+pyproj      # Geospatial Calculations.
+numpy       # Math.
+shapely     # Geometry.
+toolz       # XArray Dependency.
+xarray      # Better pandas.
