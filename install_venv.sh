@@ -11,6 +11,6 @@ python3 -m venv ${VIRTUAL_ENVIRONMENT}
 source ./${VIRTUAL_ENVIRONMENT}/bin/activate
 
 # Pip install the required packages.
-pip install --upgrade pip numpy pyproj matplotlib \
- git+https://github.com/matplotlib/basemap.git
-pip install -r requirements.txt
+python -m pip install --upgrade pip numpy pyproj matplotlib
+# python -m pip install git+https://github.com/matplotlib/basemap.git
+pyton -m pip install -r requirements.txt
