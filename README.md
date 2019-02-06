@@ -44,21 +44,39 @@ You can download it here: https://www.blender.org/download/
 
 The `TerrainGenerator` class in `terrain/TerrainGenerator.py` is a wrapper
     around the `STALGO` straight skeleton engine. This class will generate a
-    terrain (.off file) from a river outline (.ipe file) and additionally will
-    remove the vertices, faces, and edges that occurs inside the river. Then
-    it will simplify and merge coplanar polygons using blender and construct a 
-    `terrain` object by parsing the output .obj file.
+    terrain (.off file) from a either river outline (.ipe file) or image of
+    a river trace, and additionally will remove the vertices, faces, and edges
+    that occurs inside the river. Then it will simplify and merge coplanar
+    polygons using blender and construct a `terrain` object by parsing the
+    output .obj file.
 
 Running the generator will produce a few files:
+ - `terrain/data/contour.png`                   - Image showing OpenCV contours.
+                                                    (from trace file)
+ - `terrain/data/river.ipe`                     - Generated .ipe file to be used as
+                                                    input to STALGO.
+                                                    (from trace file)
+ - `terrain/data/river_out.ipe`                 - The .ipe file output by STALGO.
  - `terrain/data/terrain.off`                   - the STALGO output file.
  - `terrain/data/terrain_subset.obj`            - the pymesh output file.
  - `terrain/data/simplified_terrain_subset.obj` - the blender output file.
  - `terrain/data/simplified_terrain_subset.mtl` - extraneous blender output file.
 
-You might need to proved the `stalgo_executable` and/or `blender_executable` since
+You might need to provide the `stalgo_executable` and/or `blender_executable` since
     these will most likely not be the same location for you as they are for me.
 
-##### Example
+##### Examples
+From image:
+```python
+from terrain import TerrainGenerator
+terr_gen = TerrainGenerator(river_trace_image='data/terrain_data/detroit_rivers.png')
+terr_gen.run()
+print(terr_gen.terrain)
+
+'terrain_subset :: NumberOfVertices = 4812, NumberOfFaces = 1005'
+```
+
+From .ipe file:
 ```python
 from terrain import TerrainGenerator
 terr_gen = TerrainGenerator(ipe_file='data/terrain_data/boston_harbor_outline.ipe')

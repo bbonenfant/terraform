@@ -5,6 +5,9 @@ nosetests.xml
 coverage.xml
 *.cover
 
+# Unused Blender Output
+*.mtl
+
 # Other files
 *.DS_Store
 *.idea/

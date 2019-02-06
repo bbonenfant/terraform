@@ -26,9 +26,6 @@ def run_blender(input_file, output_file):
     # Merge coplanar polygons.
     bpy.ops.mesh.dissolve_limited(angle_limit=math.radians(1.0))
 
-    # For some reason PyMesh rotates the mesh by 90 degrees about the x-axis, so we reverse this.
-    bpy.ops.transform.rotate(value=math.radians(-90.0), axis=(1.0, 0.0, 0.0))
-
     # Export file.
     bpy.ops.export_scene.obj(filepath=output_file)
 

@@ -1,9 +1,12 @@
-cfgrib      # Reading Gribs.
-cython      # C-Extensions.
-dask        # XArray Dependency.
-matplotlib  # Plotting.
-pyproj      # Geospatial Calculations.
-numpy       # Math.
-shapely     # Geometry.
-toolz       # XArray Dependency.
-xarray      # Better pandas.
+cfgrib                      # Reading Gribs.
+cython                      # C-Extensions.
+dask                        # XArray Dependency.
+imutils                     # Utilities for OpenCV.
+lxml                        # XML writing.
+matplotlib                  # Plotting.
+pyproj                      # Geospatial Calculations.
+numpy                       # Math.
+opencv-contrib-python       # OpenCV in Python.
+shapely                     # Geometry.
+toolz                       # XArray Dependency.
+xarray                      # Better pandas.
