@@ -5,6 +5,7 @@ imutils                     # Utilities for OpenCV.
 lxml                        # XML writing.
 matplotlib                  # Plotting.
 pyproj                      # Geospatial Calculations.
+pyqtree                     # Quadtree.
 numpy                       # Math.
 opencv-contrib-python       # OpenCV in Python.
 shapely                     # Geometry.
