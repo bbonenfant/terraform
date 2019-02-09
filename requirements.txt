@@ -6,6 +6,7 @@ lxml                        # XML writing.
 matplotlib                  # Plotting.
 pyproj                      # Geospatial Calculations.
 pyqtree                     # Quadtree.
+pytest                      # Testing.
 numpy                       # Math.
 opencv-contrib-python       # OpenCV in Python.
 shapely                     # Geometry.
