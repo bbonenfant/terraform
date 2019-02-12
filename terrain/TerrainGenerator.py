@@ -5,10 +5,12 @@ import subprocess
 import numpy as np
 from lxml import etree
 from os import path, sep
+from matplotlib.path import Path
 from datetime import datetime
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Polygon
 
 from terrain.Object import Object
+from utilities.timing import TimingDict
 
 
 class TerrainGenerator:
@@ -21,8 +23,11 @@ class TerrainGenerator:
     _river_file = path.join(_data_directory, 'river.ipe')
     _river_out_file = path.join(_data_directory, 'river_out.ipe')
     _terrain_file = path.join(_data_directory, 'terrain.off')
-    _subset_file = path.join(_data_directory, 'terrain_subset.obj')
+    _subset_river_file = path.join(_data_directory, 'river_subset.obj')
+    _subset_terrain_file = path.join(_data_directory, 'terrain_subset.obj')
     _simplified_file = path.join(_data_directory, 'simplified_terrain_subset.obj')
+
+    _timing_data = TimingDict()
 
     def __init__(self, river_trace_image=None, ipe_file=None, terrain_maximum_height=0.015, terrain_slope=0.200,
                  stalgo_executable=None, blender_executable=None):
@@ -60,6 +65,8 @@ class TerrainGenerator:
 
     def run(self):
         """ Generate the terrain file and construct the terrain object. """
+        self._timing_data.put('total_time')
+
         # Generate an .ipe file from the river trace file.
         if self.trace_image is not None:
             self.river_vertices = self.draw_polygon(self.trace_image)
@@ -70,16 +77,19 @@ class TerrainGenerator:
         else:
             self.execute_stalgo(self.stalgo, self.ipe_file, self.max_height, self.slope)
 
-        print('     --------')      # For formatting purposes only.
         self._subset_mesh()
-
-        print('     --------')      # For formatting purposes only.
         self._simplify_mesh()
 
         # Construct the terrain object.
-        self.terrain = Object(self._simplified_file)
+        self.terrain = self._timing_data.time('object_creation', Object, self._simplified_file)
+
+        # Print the timing data.
+        self._timing_data.total_time.time()
+
+        print('\nTiming Data:\n\t{}'.format("\n\t".join(str(self._timing_data).split('\n'))))
 
     @classmethod
+    @_timing_data.time('contour_river')
     def draw_polygon(cls, river_trace_image):
         """
             Using the input 1D river trace from USGS Streamer web-app: https://txpub.usgs.gov/DSS/streamer/web/
@@ -158,6 +168,7 @@ class TerrainGenerator:
             fout.write(etree.tostring(river, encoding='UTF-8', xml_declaration=True, pretty_print=True))
 
     @staticmethod
+    @_timing_data.time('run_stalgo')
     def execute_stalgo(stalgo_executable, ipe_file, terrain_maximum_height, terrain_slope,
                        terrain_out_file=_terrain_file, ipe_out_file=_river_out_file):
         """
@@ -175,36 +186,40 @@ class TerrainGenerator:
                         f'--output-terrain-maxheight {terrain_maximum_height} '
                         f'--output-terrain-slope {terrain_slope}').split())
 
+    @_timing_data.time('simplify_mesh')
     def _simplify_mesh(self):
         """ Run a blender script to simplify and merge the polygons of the mesh. """
         subprocess.run((f'{self.blender} -b -P {self._blender_script} -- '
-                        f'--input {self._subset_file} --output {self._simplified_file}').split())
+                        f'--input {self._subset_terrain_file} --output {self._simplified_file}').split())
 
     def _subset_mesh(self):
         """ Subset the STALGO output mesh by removing the river and points outside of the offset. """
         # Get the total mesh and the river polygon.
-        mesh = pymesh.load_mesh(self._terrain_file)
+        mesh = self._timing_data.time('load_mesh', pymesh.load_mesh, self._terrain_file)
         river = self.get_river_polygon()
 
         # Collect all the vertices whose projection onto the XY plane are *strictly* within the river polygon.
         #   The buffer of 0.001 gives the vertices some thickness which is needed due to floating point error
         #     i.e. collect all vertices such that a ball of radius 0.001 centered at the vertex is entirely contained
         #     within the polygon.
-        vertices_to_be_removed = [index for index, vertex in enumerate(mesh.vertices)
-                                  if Point(vertex[:2]).buffer(0.0001).within(river)]
+        self._timing_data.put('matplotlib_river')
+        river_path = Path(list(river.exterior.coords)[:-1])
+        terrain_vertices = np.logical_not(river_path.contains_points(mesh.vertices[:, :2], radius=-0.0001))
+        self._timing_data.matplotlib_river.time()
 
-        # Do some numpy indexing magic to convert vertices_to_be_removed to faces_to_keep.
-        vertices_to_keep = np.ones(mesh.num_vertices, dtype=bool)
-        vertices_to_keep[vertices_to_be_removed] = False
-        faces_to_keep = np.all(vertices_to_keep[mesh.faces], axis=1)
-        selected_faces = np.arange(mesh.num_faces, dtype=int)[faces_to_keep]
+        terrain_faces = np.all(terrain_vertices[mesh.faces], axis=1)
+        mesh_terrain_faces = np.arange(mesh.num_faces, dtype=int)[terrain_faces]
+        mesh_river_faces = np.array([n for n in np.arange(mesh.num_faces, dtype=int) if n not in mesh_terrain_faces])
 
         # Subset the original mesh, only keeping the selected faces.
-        subset_mesh = pymesh.submesh(mesh, selected_faces, 0)
+        subset_terrain = self._timing_data.time('subset_terrain', pymesh.submesh, mesh, mesh_terrain_faces, 0)
+        subset_river = self._timing_data.time('subset_river', pymesh.submesh, mesh, mesh_river_faces, 0)
 
         # Save to file.
-        pymesh.save_mesh(filename=self._subset_file, mesh=subset_mesh)
+        pymesh.save_mesh(filename=self._subset_terrain_file, mesh=subset_terrain)
+        pymesh.save_mesh(filename=self._subset_river_file, mesh=subset_river)
 
+    @_timing_data.time('construct_river_polygon')
     def get_river_polygon(self):
         """ Construct a Polygon from the vertices of the river that are extracted from the ipe file. """
         # Extract the river layer from the ipe file.

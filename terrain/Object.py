@@ -40,7 +40,7 @@ class Face:
     @property
     def bbox(self):
         """ Return a tuple indicating a bounding box for the polygon. """
-        return np.array([*self.vertices.min(0)[:2], *self.vertices.max(0)[:2]])
+        return self.polygon.bounds
 
 
 class Object:
@@ -53,6 +53,7 @@ class Object:
         self.file = obj_file
         self.name = None
         self.vertices = None
+        self.normal_vectors = None
         self.faces = None
 
         self._adjacency_matrix = None
@@ -94,7 +95,7 @@ class Object:
                     self.name = line.strip()[2:]
 
         self.vertices = np.array([[float(num) for num in vertex.split()[1:]] for vertex in vertex_strings])
-        normal_vectors = np.array([[float(num) for num in normal.split()[1:]] for normal in normal_strings])
+        self.normal_vectors = np.array([[float(num) for num in normal.split()[1:]] for normal in normal_strings])
 
         self.faces = []
         for face in face_strings:
@@ -104,7 +105,7 @@ class Object:
 
             # Get the normal vector.
             normal_index = int(components[0].split('/')[-1]) - 1
-            normal = normal_vectors[normal_index]
+            normal = self.normal_vectors[normal_index]
 
             # Get the vertices.
             vertex_indices = [int(component.split('/')[0]) - 1 for component in components]
@@ -125,13 +126,9 @@ class Object:
     def _construct_adjacency(self):
         """ Construct the adjacency matrix for the faces of the terrain. """
 
-        # noinspection PyUnresolvedReferences
         def numpy_vector_intersect(vector_array1, vector_array2):
             """ Computes the intersection of two numpy arrays of vectors. """
-            arr1_view = vector_array1.view([('', vector_array1.dtype)] * vector_array1.shape[1])
-            arr2_view = vector_array2.view([('', vector_array2.dtype)] * vector_array2.shape[1])
-            intersection = np.intersect1d(arr1_view, arr2_view)
-            return intersection.view(vector_array2.dtype).reshape(-1, vector_array2.shape[1])
+            return set(map(tuple, vector_array1)).intersection(map(tuple, vector_array2))
 
         # Initialize an empty adjacency matrix.
         faces_count = len(self.faces)
@@ -140,14 +137,12 @@ class Object:
         # Efficiently loop over the faces using the quadtree search.
         for face in self.faces:
             # Get all the proper neighbors of the face.
-            neighbors = [neighbor for neighbor in self.quadtree.intersect(face.bbox) if neighbor != face]
+            neighbors = filter(face.__ne__, self.quadtree.intersect(face.bbox))
 
             # Loop over the neighbors. Neighbor is deemed adjacent if they share more than two vertices (an edge).
             for neighbor in neighbors:
                 vertex_intersection = numpy_vector_intersect(face.vertices, neighbor.vertices)
-                if vertex_intersection.shape[0] > 1:
-                    self._adjacency_matrix[face.index, neighbor.index] = True
-                    self._adjacency_matrix[neighbor.index, face.index] = True
+                self._adjacency_matrix[face.index, neighbor.index] = len(vertex_intersection) > 1
 
     def get_containing_face(self, point):
         """
