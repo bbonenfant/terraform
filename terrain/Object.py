@@ -1,16 +1,13 @@
 """ Classes for reading and unpacking .obj files. """
 import numpy as np
 from pyqtree import Index
-from itertools import count
 from shapely.geometry import Point, Polygon
 
 
 class Face:
-
     __slots__ = ['vertices', 'normal', 'polygon', '_index']
-    indexer = count()
 
-    def __init__(self, vertices, normal, polygon):
+    def __init__(self, vertices, normal, polygon, index):
         """
         :param vertices: (Nx3) ndarray of floats representing the vertices of the face.
         :param normal: A 3D ndarray representing the normal vector to the face.
@@ -19,7 +16,7 @@ class Face:
         self.vertices = vertices
         self.normal = normal
         self.polygon = polygon
-        self._index = next(self.indexer)
+        self._index = index
 
     def __repr__(self):
         return (f'Face(\n\tvertices=\\'
@@ -112,7 +109,7 @@ class Object:
             vertices = np.array([self.vertices[index] for index in vertex_indices])
 
             # Construct the faces.
-            self.faces.append(Face(vertices=vertices, normal=normal, polygon=Polygon(vertices)))
+            self.faces.append(Face(vertices=vertices, normal=normal, polygon=Polygon(vertices), index=len(self.faces)))
 
     def _construct_quadtree(self):
         """ Construct the quadtree instance. Useful for searching the terrain. """
@@ -159,3 +156,13 @@ class Object:
             elif target.within(face.polygon):
                 return face
         return None
+
+
+class River(Object):
+    pass
+
+
+class Terrain(Object):
+    def __init__(self, terrain_file, river_file):
+        self.river = River(river_file)
+        super().__init__(terrain_file)

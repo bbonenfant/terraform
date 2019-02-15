@@ -1,9 +1,8 @@
 import os
 import pytest
 import numpy as np
-from itertools import count
 
-from terrain.Object import Face, Object
+from terrain.Object import Object
 
 
 class TestObject:
@@ -12,20 +11,14 @@ class TestObject:
     grid_mesh_file = os.path.join(test_data_directory, 'mesh_grid.obj')
     rotated_grid_mesh_file = os.path.join(test_data_directory, 'mesh_rotated_grid.obj')
 
-    @staticmethod
-    def teardown_method():
-        """ Method to tear down the test environment after testing. """
-        Face.indexer = count()
-
     def test_parse_file(self, snapshot):
         """ Test that parse_file parses the .obj file as expected. """
         # Arrange
-        test_object = Object(self.grid_mesh_file)
         expected_vertices = np.array([[row, column] for row in range(-2, 3) for column in range(-2, 3)])
         expected_normals = np.array([[0, 1]])
 
         # Act
-        test_object._parse_file()
+        test_object = Object(self.grid_mesh_file)
 
         # Assert
         np.array_equal(expected_vertices, test_object.vertices)

@@ -9,7 +9,7 @@ from matplotlib.path import Path
 from datetime import datetime
 from shapely.geometry import Polygon
 
-from terrain.Object import Object
+from terrain.Object import Terrain
 from utilities.timing import TimingDict
 
 
@@ -25,7 +25,8 @@ class TerrainGenerator:
     _terrain_file = path.join(_data_directory, 'terrain.off')
     _subset_river_file = path.join(_data_directory, 'river_subset.obj')
     _subset_terrain_file = path.join(_data_directory, 'terrain_subset.obj')
-    _simplified_file = path.join(_data_directory, 'simplified_terrain_subset.obj')
+    _simplified_river_file = path.join(_data_directory, 'simplified_river_subset.obj')
+    _simplified_terrain_file = path.join(_data_directory, 'simplified_terrain_subset.obj')
 
     _timing_data = TimingDict()
 
@@ -78,10 +79,12 @@ class TerrainGenerator:
             self.execute_stalgo(self.stalgo, self.ipe_file, self.max_height, self.slope)
 
         self._subset_mesh()
-        self._simplify_mesh()
+        self._simplify_mesh(self._subset_terrain_file, self._simplified_terrain_file)
+        self._simplify_mesh(self._subset_river_file, self._simplified_river_file)
 
         # Construct the terrain object.
-        self.terrain = self._timing_data.time('object_creation', Object, self._simplified_file)
+        self.terrain = self._timing_data.time('terrain_creation', Terrain,
+                                              self._simplified_terrain_file, self._simplified_river_file)
 
         # Print the timing data.
         self._timing_data.total_time.time()
@@ -187,10 +190,10 @@ class TerrainGenerator:
                         f'--output-terrain-slope {terrain_slope}').split())
 
     @_timing_data.time('simplify_mesh')
-    def _simplify_mesh(self):
+    def _simplify_mesh(self, input_file, output_file):
         """ Run a blender script to simplify and merge the polygons of the mesh. """
         subprocess.run((f'{self.blender} -b -P {self._blender_script} -- '
-                        f'--input {self._subset_terrain_file} --output {self._simplified_file}').split())
+                        f'--input {input_file} --output {output_file}').split())
 
     def _subset_mesh(self):
         """ Subset the STALGO output mesh by removing the river and points outside of the offset. """
