@@ -192,7 +192,6 @@ class RainFlow:
         self.rainfall_rate = 1  # Placeholder, ideally want to pull this from NOAA data.
 
         self.setup()
-        #self.simulate()
 
     def __repr__(self):
         """ Prints out a string representation of the water level for each cell in the terrain. """
@@ -249,7 +248,6 @@ class RainFlow:
         :param steps: Number of steps to iterate the rain flow process.
         """
         for i in range(0, steps):
-            print(self.mesh)
             for x in self.mesh.keys():
                 for y in self.mesh[x].keys():
                     self.step_cell([x,y])
