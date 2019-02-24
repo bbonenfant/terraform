@@ -2,7 +2,7 @@ import os
 import pytest
 import numpy as np
 
-from terrain.Object import Object
+from terrain.Object import Object, River
 
 
 class TestObject:
@@ -146,3 +146,34 @@ class TestObject:
         # Act & Raise
         with pytest.raises(ValueError):
             test_object.get_containing_face(point)
+
+
+class TestRiver:
+    test_data_directory = os.path.join(os.path.dirname(__file__), 'test_data')
+    river_file = os.path.join(test_data_directory, 'river.obj')
+
+    def test_river_directed_graph(self):
+        # Arrange
+        expected_directed_graph = np.array(
+            [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+             [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+             [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+             [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+             [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+             [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+             [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0]],
+            dtype=bool)
+
+        # Act
+        river = River(self.river_file)
+
+        # Assert
+        assert np.array_equal(expected_directed_graph, river.directed_graph)
+        for directed, undirected in zip(river.directed_graph.flatten(),
+                                        river.adjacency_matrix_inner_vertices.flatten()):
+            if directed:
+                assert undirected

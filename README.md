@@ -58,7 +58,10 @@ Running the generator will produce a few files:
                                                     (from trace file)
  - `terrain/data/river_out.ipe`                 - The .ipe file output by STALGO.
  - `terrain/data/terrain.off`                   - the STALGO output file.
+ - `terrain/data/river_subset.obj`              - the pymesh output file.
  - `terrain/data/terrain_subset.obj`            - the pymesh output file.
+ - `terrain/data/simplified_river_subset.obj`   - the blender output file.
+ - `terrain/data/simplified_river_subset.mtl`   - extraneous blender output file.
  - `terrain/data/simplified_terrain_subset.obj` - the blender output file.
  - `terrain/data/simplified_terrain_subset.mtl` - extraneous blender output file.
 
@@ -72,8 +75,10 @@ from terrain import TerrainGenerator
 terr_gen = TerrainGenerator(river_trace_image='data/terrain_data/detroit_rivers.png')
 terr_gen.run()
 print(terr_gen.terrain)
+print(terr_gen.terrain.river)
 
 'terrain_subset :: NumberOfVertices = 4812, NumberOfFaces = 1005'
+'river_subset :: NumberOfVertices = 4469, NumberOfFaces = 895'
 ```
 
 From .ipe file:
