@@ -177,6 +177,7 @@ class River(Object):
         :param obj_file: Path to a .obj file.
         """
         self.inner_vertices = None
+        self.river_head = None
         self._adjacency_matrix_inner_vertices = None
         self._directed_graph = None
         super().__init__(obj_file)
@@ -201,10 +202,12 @@ class River(Object):
             try:
                 index = np.where((face_.vertices == vertex_).all(axis=1))[0][0]
             except IndexError:
+                # If the vertex is not found in the face (possibility due to bounding box) return empty list.
                 return []
             try:
                 return face_.vertices[index - 1], face_.vertices[index + 1]
             except IndexError:
+                # If the vertex is the last of the list of vertices, then the first vertex is also adjacent.
                 return face_.vertices[index - 1], face_.vertices[0]
 
         # Subset the inner vertices (these are the vertices with nonzero z-coordinates).
@@ -235,6 +238,7 @@ class River(Object):
         # Initialize looping
         #   We assume the vertex of the head of the river is the vertex with maximum z-coordinate.
         head_vertex = self.inner_vertices[:, 2].argmax()
+        self.river_head = self.inner_vertices[head_vertex]
         #   We create a LiFo queue for dealing with branches in the river.
         vertex_queue = queue.LifoQueue()
         vertex_queue.put(head_vertex)
@@ -264,12 +268,19 @@ class River(Object):
                 lines.append([tuple(upstream_vertex[:2]), tuple(self.inner_vertices[downstream_index][:2])])
 
         fig, ax = pl.subplots()
-        ax.add_collection(mc.LineCollection(lines))
+        pl.scatter(self.river_head[0], self.river_head[1], c='y', s=50, marker='*', zorder=10)
+        ax.add_collection(mc.LineCollection(lines, colors=[(0, 0, 1, 1)] * len(lines)))
         ax.autoscale()
         ax.margins(0.1)
 
 
 class Terrain(Object):
+    """ Class to hold all terrain information. """
+
     def __init__(self, terrain_file, river_file):
+        """
+        :param terrain_file: Path to the output terrain .obj file.
+        :param river_file: Path to the output river .obj file.
+        """
         self.river = River(river_file)
         super().__init__(terrain_file)

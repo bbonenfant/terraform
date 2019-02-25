@@ -16,7 +16,7 @@
 #           |*|
 #           +-+
 #
-# Expected Directed Graph
+# Expected Directed Graph (inner vertices ordered left-to-right top-to-bottom)
 # [
 #  0 0 0 0 1 0 0 0 0 0
 #  1 0 0 0 0 0 0 0 0 0
@@ -79,6 +79,7 @@ v 10 -4 0
 v 12 -4 0
 
 ## Normal Vector
+#   This is not the correct normal vector, but the normal vector is not used for these tests.
 vn 0 0 1
 
 ## Faces
