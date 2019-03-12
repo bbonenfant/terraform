@@ -1,7 +1,10 @@
 """ Classes for reading and unpacking .obj files. """
+import queue
 import numpy as np
 from pyqtree import Index
 from shapely.geometry import Point, Polygon
+from matplotlib import pylab as pl
+from matplotlib import collections as mc
 
 
 class Face:
@@ -166,13 +169,128 @@ class Object:
                 return face
         return None
 
+    def get_member_faces(self, vertex):
+        """
+            Return a list of faces of which the vertex argument is a defining member of.
+        :param vertex: The vertex. (1x3 ndarray
+        :return: List of faces.
+        """
+        return [face for face in self.quadtree.intersect(vertex[:2]) if vertex in face.vertices]
+
 
 class River(Object):
-    pass
+    """ Class for reading and unpacking .obj files, specifically those describing a river. """
+
+    def __init__(self, obj_file):
+        """
+        :param obj_file: Path to a .obj file.
+        """
+        self.inner_vertices = None
+        self.river_head = None
+        self._adjacency_matrix_inner_vertices = None
+        self._directed_graph = None
+        super().__init__(obj_file)
+
+    def unpack(self):
+        """ Unpack the information from the .obj file. """
+        super().unpack()
+        self.construct_directed_graph()
+
+    @property
+    def adjacency_matrix_inner_vertices(self):
+        return self._adjacency_matrix_inner_vertices
+
+    @property
+    def directed_graph(self):
+        return self._directed_graph
+
+    def _construct_adjacency_inner_vertices(self):
+        """ Construct the adjacency matrix for the inner vertices of the terrain. """
+        def get_adjacent_vertices(vertex_, face_):
+            """ Return the adjacent vertices to vertex_ in face_ """
+            try:
+                index = np.where((face_.vertices == vertex_).all(axis=1))[0][0]
+            except IndexError:
+                # If the vertex is not found in the face (possibility due to bounding box) return empty list.
+                return []
+            try:
+                return face_.vertices[index - 1], face_.vertices[index + 1]
+            except IndexError:
+                # If the vertex is the last of the list of vertices, then the first vertex is also adjacent.
+                return face_.vertices[index - 1], face_.vertices[0]
+
+        # Subset the inner vertices (these are the vertices with nonzero z-coordinates).
+        inner_vertices_indexes = np.nonzero(self.vertices[:, 2] > 1e-6)
+        self.inner_vertices = np.unique(self.vertices[inner_vertices_indexes], axis=0)
+
+        # Construct an empty adjacency matrix for the inner vertices.
+        vertices_count = self.inner_vertices.shape[0]
+        self._adjacency_matrix_inner_vertices = np.zeros((vertices_count, vertices_count), dtype=bool)
+
+        # Iterate over the vertices to populate the adjacency matrix.
+        for vertex_index, vertex in enumerate(self.inner_vertices):
+            for face in self.get_member_faces(vertex):
+                for face_vertex in get_adjacent_vertices(vertex, face):
+                    if (face_vertex[2] > 1e-6) and (not np.array_equal(face_vertex, vertex)):
+                        face_vertex_index = np.where((self.inner_vertices == face_vertex).all(axis=1))[0][0]
+                        self._adjacency_matrix_inner_vertices[vertex_index, face_vertex_index] = True
+
+    def construct_directed_graph(self):
+        """ Construct the directed graph of the river. """
+        # Construct the adjacency matrix of the interior river points.
+        self._construct_adjacency_inner_vertices()
+
+        # Construct an empty matrix to serve as the directed graph.
+        vertices_count = self.inner_vertices.shape[0]
+        self._directed_graph = np.zeros((vertices_count, vertices_count), dtype=bool)
+
+        # Initialize looping
+        #   We assume the vertex of the head of the river is the vertex with maximum z-coordinate.
+        head_vertex = self.inner_vertices[:, 2].argmax()
+        self.river_head = self.inner_vertices[head_vertex]
+        #   We create a LiFo queue for dealing with branches in the river.
+        vertex_queue = queue.LifoQueue()
+        vertex_queue.put(head_vertex)
+        #   We create a visitation boolean array to avoid cycles.
+        visited = np.zeros(vertices_count)
+
+        # Loop over the vertices until the vertex queue is empty.
+        while not vertex_queue.empty():
+            # Pop a vertex out of the queue and mark it as visited.
+            vertex = vertex_queue.get()
+            visited[vertex] = 1
+
+            # Gather all "upstream" vertices using the adjacency matrix and visitation boolean array.
+            adjacency_vector = self.adjacency_matrix_inner_vertices[vertex]
+            upstream_vertices = [vertex for vertex in np.where(adjacency_vector != 0)[0] if not visited[vertex]]
+
+            # Indicate the current vertex as "downstream" of the "upstream" vertices and pop them on the queue.
+            for upstream_vertex in upstream_vertices:
+                self._directed_graph[upstream_vertex, vertex] = 1
+                vertex_queue.put(upstream_vertex)
+
+    def plot_river(self):
+        """ Plot the directed graph. """
+        lines = []
+        for upstream_index, upstream_vertex in enumerate(self.inner_vertices):
+            for downstream_index in np.where(self.directed_graph[upstream_index] != 0)[0]:
+                lines.append([tuple(upstream_vertex[:2]), tuple(self.inner_vertices[downstream_index][:2])])
+
+        fig, ax = pl.subplots()
+        pl.scatter(self.river_head[0], self.river_head[1], c='y', s=50, marker='*', zorder=10)
+        ax.add_collection(mc.LineCollection(lines, colors=[(0, 0, 1, 1)] * len(lines)))
+        ax.autoscale()
+        ax.margins(0.1)
 
 
 class Terrain(Object):
+    """ Class to hold all terrain information. """
+
     def __init__(self, terrain_file, river_file):
+        """
+        :param terrain_file: Path to the output terrain .obj file.
+        :param river_file: Path to the output river .obj file.
+        """
         self.river = River(river_file)
         super().__init__(terrain_file)
 

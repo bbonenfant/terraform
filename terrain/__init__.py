@@ -1,5 +1,5 @@
 """ Simplify import statements. """
 from .TerrainGenerator import TerrainGenerator
-from .Object import Object
+from .Object import Terrain
 
-__all__ = ['TerrainGenerator', 'Object']
+__all__ = ['TerrainGenerator', 'Terrain']

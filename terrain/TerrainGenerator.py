@@ -208,6 +208,7 @@ class TerrainGenerator:
         self._timing_data.put('matplotlib_river')
         river_path = Path(list(river.exterior.coords)[:-1])
         terrain_vertices = np.logical_not(river_path.contains_points(mesh.vertices[:, :2], radius=-0.0001))
+        # self.inner_river_vertices = mesh.vertices[river_path.contains_points(mesh.vertices[:, :2], radius=-0.0001)]
         self._timing_data.matplotlib_river.time()
 
         terrain_faces = np.all(terrain_vertices[mesh.faces], axis=1)
