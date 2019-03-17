@@ -26,7 +26,7 @@ class TestRainFlow:
     def test_simulate (self):
         """ Test that stepping the rainflow process on a sloped plane drains the water to the lowest cells. """
         # Arrange
-        expected_mesh = '4444\nXXXX\nXXXX\nXXXX\n'
+        expected_mesh = '4444\n....\n....\n....\n'
 
         # Act
         mesh = RainFlow(self.terrain, 1, 1)
