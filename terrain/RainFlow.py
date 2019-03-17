@@ -33,15 +33,15 @@ class RainFlow:
                 try:
                     face = self.terrain.get_containing_face([x,y])
                 except ValueError:
-                    str_output = '-' + str_output
+                    str_output = ' ' + str_output
                     continue
 
                 if face is None:
-                    str_output = '-' + str_output
+                    str_output = ' ' + str_output
                 else:
                     water_level = str(self.mesh[round(x, 5)][round(y, 5)]['current_water_level'])
                     if water_level == '0':
-                        str_output = 'X' + str_output
+                        str_output = '.' + str_output
                     else:
                         str_output = water_level + str_output
         return str_output
