@@ -109,6 +109,8 @@ from terrain import TerrainGenerator
 from terrain.RainFlow import RainFlow
 terr_gen = TerrainGenerator(river_trace_image='data/terrain_data/houston_rivers.png')
 terr_gen.run()
+
+terrain = Object(obj_file='data/simplified_terrain_subset.obj')
 rain_flow = RainFlow(terrain=terrain,mesh_size=0.02,rainfall_rate=1)
 print(rain_flow.__repr__())
 
