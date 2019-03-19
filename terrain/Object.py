@@ -178,8 +178,9 @@ class River(Object):
         """
         self.inner_vertices = None
         self.river_head = None
-        self._adjacency_matrix_inner_vertices = None
+        self._center_adjacency = None
         self._directed_graph = None
+        self._distance_matrix = None
         super().__init__(obj_file)
 
     def unpack(self):
@@ -188,14 +189,18 @@ class River(Object):
         self.construct_directed_graph()
 
     @property
-    def adjacency_matrix_inner_vertices(self):
-        return self._adjacency_matrix_inner_vertices
+    def center_adjacency(self):
+        return self._center_adjacency
 
     @property
     def directed_graph(self):
         return self._directed_graph
 
-    def _construct_adjacency_inner_vertices(self):
+    @property
+    def distance_matrix(self):
+        return self._distance_matrix
+
+    def _construct_center_adjacency(self):
         """ Construct the adjacency matrix for the inner vertices of the terrain. """
         def get_adjacent_vertices(vertex_, face_):
             """ Return the adjacent vertices to vertex_ in face_ """
@@ -216,7 +221,8 @@ class River(Object):
 
         # Construct an empty adjacency matrix for the inner vertices.
         vertices_count = self.inner_vertices.shape[0]
-        self._adjacency_matrix_inner_vertices = np.zeros((vertices_count, vertices_count), dtype=bool)
+        self._center_adjacency = np.zeros((vertices_count, vertices_count), dtype=bool)
+        self._distance_matrix = np.zeros((vertices_count, vertices_count), dtype=float)
 
         # Iterate over the vertices to populate the adjacency matrix.
         for vertex_index, vertex in enumerate(self.inner_vertices):
@@ -224,12 +230,13 @@ class River(Object):
                 for face_vertex in get_adjacent_vertices(vertex, face):
                     if (face_vertex[2] > 1e-6) and (not np.array_equal(face_vertex, vertex)):
                         face_vertex_index = np.where((self.inner_vertices == face_vertex).all(axis=1))[0][0]
-                        self._adjacency_matrix_inner_vertices[vertex_index, face_vertex_index] = True
+                        self._center_adjacency[vertex_index, face_vertex_index] = True
+                        self._distance_matrix[vertex_index, face_vertex_index] = np.linalg.norm(vertex - face_vertex)
 
     def construct_directed_graph(self):
         """ Construct the directed graph of the river. """
         # Construct the adjacency matrix of the interior river points.
-        self._construct_adjacency_inner_vertices()
+        self._construct_center_adjacency()
 
         # Construct an empty matrix to serve as the directed graph.
         vertices_count = self.inner_vertices.shape[0]
@@ -252,13 +259,18 @@ class River(Object):
             visited[vertex] = 1
 
             # Gather all "upstream" vertices using the adjacency matrix and visitation boolean array.
-            adjacency_vector = self.adjacency_matrix_inner_vertices[vertex]
+            adjacency_vector = self.center_adjacency[vertex]
             upstream_vertices = [vertex for vertex in np.where(adjacency_vector != 0)[0] if not visited[vertex]]
 
             # Indicate the current vertex as "downstream" of the "upstream" vertices and pop them on the queue.
             for upstream_vertex in upstream_vertices:
                 self._directed_graph[upstream_vertex, vertex] = 1
                 vertex_queue.put(upstream_vertex)
+
+        if len([row for row in self.directed_graph if np.array_equal(row, np.zeros(vertices_count))]) != 1:
+            # If any rows besides the sink row are zero vectors, then this indicates that the algorithm did not
+            #   reach the corresponding node, so raise RuntimeError.
+            raise RuntimeError(f'A connected graph was not constructed.')
 
     def plot_river(self):
         """ Plot the directed graph. """
