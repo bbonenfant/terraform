@@ -178,15 +178,18 @@ class River(Object):
         """
         self.inner_vertices = None
         self.river_head = None
+        self._initial_state = None
         self._center_adjacency = None
         self._directed_graph = None
         self._distance_matrix = None
+        self._flow_matrix = None
         super().__init__(obj_file)
 
     def unpack(self):
         """ Unpack the information from the .obj file. """
         super().unpack()
         self.construct_directed_graph()
+        self.construct_flow_matrix()
 
     @property
     def center_adjacency(self):
@@ -199,6 +202,32 @@ class River(Object):
     @property
     def distance_matrix(self):
         return self._distance_matrix
+
+    @property
+    def flow_matrix(self):
+        """ The flow matrix is the private _flow_matrix scaled by the velocity. """
+        id_matrix = np.identity(self._flow_matrix.shape[0])
+        scaled_flow = id_matrix - (self.velocity * (id_matrix - self._flow_matrix))
+        if (not np.all(scaled_flow >= 0)) or (not np.all(scaled_flow <= 1)):
+            raise ValueError("The flow matrix has either elements greater than 1 or less than zero. "
+                             "This indicates that the velocity value was not valid.")
+        return scaled_flow
+
+    @property
+    def initial_state(self):
+        if (self._initial_state is None) and (self.distance_matrix is not None):
+            self._initial_state = np.sum(self.distance_matrix, axis=1)
+        return self._initial_state
+
+    @property
+    def offset_vector(self):
+        """ The offset vector needed to "fill up" this source nodes. """
+        return (self.flow_matrix @ self.initial_state) - self.initial_state
+
+    @property
+    def velocity(self):
+        """ This is a placeholder. This sets the velocity within the threshold to produce a valid flow matrix. """
+        return 1 / abs(10 * np.min(self._flow_matrix))
 
     def _construct_center_adjacency(self):
         """ Construct the adjacency matrix for the inner vertices of the terrain. """
@@ -271,6 +300,53 @@ class River(Object):
             # If any rows besides the sink row are zero vectors, then this indicates that the algorithm did not
             #   reach the corresponding node, so raise RuntimeError.
             raise RuntimeError(f'A connected graph was not constructed.')
+
+    def construct_flow_matrix(self):
+        """ Construct the flow matrix. """
+
+        def complete_cross(row_index_, column_index_):
+            """ Complete the row and column of the Flow Matrix associated with row_index_, column_index_"""
+            # We remove the np.nan value to obtain a valid dot product.
+            self._flow_matrix[row_index_, column_index_] = 0
+            dot_product = self._flow_matrix[row_index_] @ self.initial_state
+            if dot_product == 0:
+                # If the dot product is zero, we assume that this row corresponds to a source node.
+                percent_flow = 1 / self.initial_state[row_index_]
+            else:
+                # Else we calculate the percent flow as usual.
+                percent_flow = dot_product / self.initial_state[row_index_]
+            # Fill in the (zeroed) undetermined value with (1 - {percent flow}) [The percent that did not flow]
+            self._flow_matrix[row_index_, column_index_] = 1 - percent_flow
+
+            # Now we fill the np.nan element in the column with the percent flow value.
+            undetermined_column_elements = np.where(np.isnan(self._flow_matrix[:, column_index_]))[0]
+            if undetermined_column_elements.size == 1:
+                # assert len(undetermined_column_elements) == 1, \
+                #     f"Expected only one undetermined element in the row. Found: {len(undetermined_column_elements)}"
+                new_row_index = undetermined_column_elements[0]
+                self._flow_matrix[new_row_index, column_index_] = percent_flow
+
+        # The nonzero values of the flow matrix will be the same as those of the directed graph, so we copy this
+        #   matrix, replacing the nonzero values with np.nan values to indicate an unfilled value.
+        self._flow_matrix = self._directed_graph.astype(float).transpose() + np.identity(self._directed_graph.shape[0])
+        self._flow_matrix[np.nonzero(self._flow_matrix)] = np.nan
+
+        # Get a list of rows all rows. These will be removed from the list once they are filled.
+        undetermined_rows = list(range(self._flow_matrix.shape[0]))
+
+        # Loop over all the rows until they are all filled. Note, this is not the fastest way to do this,
+        #   Most likely a recursive strategy would be faster, but this is the simplest to implement.
+        while undetermined_rows:
+            rows_to_delete = []
+            for row_index in undetermined_rows:
+                undetermined_row_elements = np.where(np.isnan(self._flow_matrix[row_index]))[0]
+                # If a row has only one element with np.nan, then there is enough information for this row to be filled.
+                if len(undetermined_row_elements) == 1:
+                    column_index = undetermined_row_elements[0]
+                    complete_cross(row_index, column_index)
+                    rows_to_delete.append(row_index)
+            for row in rows_to_delete:
+                undetermined_rows.remove(row)
 
     def plot_river(self):
         """ Plot the directed graph. """
