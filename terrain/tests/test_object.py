@@ -151,6 +151,7 @@ class TestObject:
 class TestRiver:
     test_data_directory = os.path.join(os.path.dirname(__file__), 'test_data')
     river_file = os.path.join(test_data_directory, 'river.obj')
+    disconnected_river_file = os.path.join(test_data_directory, 'disconnected_river.obj')
 
     def test_river_directed_graph(self):
         # Arrange
@@ -170,10 +171,17 @@ class TestRiver:
 
         # Act
         river = River(self.river_file)
+        print(river.distance_matrix)
 
         # Assert
         assert np.array_equal(expected_directed_graph, river.directed_graph)
-        for directed, undirected in zip(river.directed_graph.flatten(),
-                                        river.adjacency_matrix_inner_vertices.flatten()):
+        for directed, undirected in zip(river.directed_graph.flatten(), river.center_adjacency.flatten()):
             if directed:
                 assert undirected
+
+    def test_directed_graph_disconnected(self):
+        """ Test that a disconnected river is accurately caught during directed graph generation. """
+        # Arrange
+
+        # Act & Assert
+        pytest.raises(RuntimeError, River, self.disconnected_river_file)
