@@ -18,6 +18,8 @@ class RainFlow:
         self.river = river
         self.river_state = self.river.initial_state
 
+        self._array_shape = tuple()
+
         self.setup()
 
     def __repr__(self):
@@ -34,7 +36,7 @@ class RainFlow:
                                self.precision_round(bbox[2], self.mesh_size / 2) + offset,
                                self.mesh_size):
                 try:
-                    face = self.terrain.get_containing_face([x,y])
+                    face = self.terrain.get_containing_face([x, y])
                 except ValueError:
                     str_output = ' ' + str_output
                     continue
@@ -49,6 +51,14 @@ class RainFlow:
                         str_output = water_level + str_output
         return str_output
 
+    @property
+    def array_state(self):
+        array = np.full(self._array_shape, np.nan)
+        for y_hash in self.mesh.values():
+            for mesh_point in y_hash.values():
+                array[mesh_point['index']] = mesh_point['current_water_level']
+        return array
+
     def setup(self):
         """ Initialize the mesh with constant water level in each cell. """
         mesh = {}
@@ -56,15 +66,22 @@ class RainFlow:
         bbox = self.terrain.bbox  # Stored as (xmin, ymin, xmax, ymax).
         offset = self.mesh_size / 2.0  # Used for shifting reference point from corner to center of cell.
 
-        # Initialize points in mesh overlaid on the terrain.
-        for x in np.arange(self.precision_round(bbox[0], self.mesh_size / 2) + offset,
-                           self.precision_round(bbox[2], self.mesh_size / 2) + offset,
-                           self.mesh_size):
-            y_hash = {}
-            for y in np.arange(self.precision_round(bbox[1], self.mesh_size / 2) + offset,
-                               self.precision_round(bbox[3], self.mesh_size / 2) + offset,
-                               self.mesh_size):
+        x_values = np.arange(
+            self.precision_round(bbox[0], offset) + offset,
+            self.precision_round(bbox[2], offset) + offset,
+            self.mesh_size
+        )
+        y_values = np.arange(
+            self.precision_round(bbox[1], offset) + offset,
+            self.precision_round(bbox[3], offset) + offset,
+            self.mesh_size
+        )
+        self._array_shape = (len(x_values), len(y_values))
 
+        # Initialize points in mesh overlaid on the terrain.
+        for x_index, x in enumerate(x_values):
+            y_hash = {}
+            for y_index, y in enumerate(y_values):
                 # Do not create point if it falls on an edge of the terrain.
                 try:
                     face = self.terrain.get_containing_face([x, y])
@@ -101,6 +118,7 @@ class RainFlow:
                     nearest_river_node_index = self.find_nearest_river_node_index([x, y])
                     y_hash[round(y, mesh_precision)] = {'current_water_level': self.rainfall_rate,
                                                         'next_water_level': 0,
+                                                        'index': (x_index, y_index),
                                                         'downhill_neighbor': [round(x, mesh_precision),
                                                                               round(y, mesh_precision)],
                                                         'desc_dir': normal,
@@ -110,6 +128,7 @@ class RainFlow:
                 else:
                     y_hash[round(y, mesh_precision)] = {'current_water_level': self.rainfall_rate,
                                                         'next_water_level': 0,
+                                                        'index': (x_index, y_index),
                                                         'downhill_neighbor': [round(x_downhill_neighbor, mesh_precision),
                                                                               round(y_downhill_neighbor, mesh_precision)],
                                                         'desc_dir': normal,

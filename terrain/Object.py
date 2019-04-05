@@ -191,6 +191,8 @@ class River(Object):
         self._directed_graph = None
         self._distance_matrix = None
         self._flow_matrix = None
+        self._cached_flow_matrix = None
+        self._source_nodes = None
         super().__init__(obj_file)
 
     def unpack(self):
@@ -214,12 +216,14 @@ class River(Object):
     @property
     def flow_matrix(self):
         """ The flow matrix is the private _flow_matrix scaled by the velocity. """
-        id_matrix = np.identity(self._flow_matrix.shape[0])
-        scaled_flow = id_matrix - (self.velocity * (id_matrix - self._flow_matrix))
-        if (not np.all(scaled_flow >= 0)) or (not np.all(scaled_flow <= 1)):
-            raise ValueError("The flow matrix has either elements greater than 1 or less than zero. "
-                             "This indicates that the velocity value was not valid.")
-        return scaled_flow
+        if self._cached_flow_matrix is None:
+            id_matrix = np.identity(self._flow_matrix.shape[0])
+            scaled_flow = id_matrix - (self.velocity * (id_matrix - self._flow_matrix))
+            if (not np.all(scaled_flow >= 0)) or (not np.all(scaled_flow <= 1)):
+                raise ValueError("The flow matrix has either elements greater than 1 or less than zero. "
+                                 "This indicates that the velocity value was not valid.")
+            self._cached_flow_matrix = scaled_flow
+        return self._cached_flow_matrix
 
     @property
     def initial_state(self):
@@ -233,9 +237,15 @@ class River(Object):
         return (self.flow_matrix @ self.initial_state) - self.initial_state
 
     @property
+    def source_nodes(self):
+        if self._source_nodes is None:
+            self._source_nodes = ~self.directed_graph.any(axis=0)
+        return self._source_nodes
+
+    @property
     def velocity(self):
         """ This is a placeholder. This sets the velocity within the threshold to produce a valid flow matrix. """
-        return 1 / abs(10 * np.min(self._flow_matrix))
+        return 1 / abs(1.1 * np.min(self._flow_matrix))
 
     def _construct_center_adjacency(self):
         """ Construct the adjacency matrix for the inner vertices of the terrain. """
