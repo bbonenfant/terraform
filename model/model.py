@@ -45,7 +45,7 @@ class Model:
         """ Initialize RainFlow and return the RainFlow object. """
         if self.terrain is None:
             raise ValueError('Terrain object never initialized.')
-        return RainFlow(self.terrain, 0.05, 1, self.river)
+        return RainFlow(self.terrain, 0.007, 1, self.river)
 
     def rainfall(self, scale_factor=1):
         """ Increment the volume of all river nodes by some amount pulled from NOAA. """
@@ -72,7 +72,7 @@ class Model:
         for _ in range(iterations):  # tqdm(range(iterations), unit='iteration'):
             if not no_rainfall:
                 self.rainfall(scale_factor)
-            # self.flow_into_river()
+            self.flow_into_river()
             self.river_state = self.river.flow_matrix @ self.river_state + self.river.offset_vector
 
             # The river shouldn't drain, so we set a lower bound for each node as the initial state.

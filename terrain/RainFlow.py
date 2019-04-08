@@ -21,6 +21,7 @@ class RainFlow:
         self._array_shape = tuple()
 
         self.setup()
+        self.fix_two_cycle_flow()
 
     def __repr__(self):
         """ Prints out a string representation of the water level for each cell in the terrain. """
@@ -138,12 +139,59 @@ class RainFlow:
         self.mesh = mesh
         return None
 
+    def fix_two_cycle_flow(self):
+        """ If 2-cycle cell references exist, set all nodes in the orbit as sink nodes and direct flows to nearest
+        river nodes. """
+        visited = []
+        for x in self.mesh.keys():
+            for y in self.mesh[x].keys():
+                # Skip already checked cells
+                if [x, y] in visited:
+                    continue
+
+                cell = self.mesh[x][y]
+                neighbor_coordinates = cell['downhill_neighbor']
+
+                # Skip cells which do not have neighbors
+                if neighbor_coordinates is None:
+                    visited.append[[x, y]]
+                    continue
+                neighbor = self.mesh[neighbor_coordinates[0]][neighbor_coordinates[1]]
+                second_neighbor_coordinates = neighbor['downhill_neighbor']
+
+                # Break up 2-cycles if they exist
+                if [x, y] == second_neighbor_coordinates:
+                    print(f'Breaking up 2-cycle between [{x},{y}] and '
+                          f'[{neighbor_coordinates[0]},{neighbor_coordinates[1]}].')
+                    cell['downhill_neighbor'] = [x,y]
+                    cell['nearest_river_node_index'] = self.find_nearest_river_node_index([x, y])
+                    cell['sink_cell'] = True
+                    neighbor['downhill_neighbor'] = neighbor_coordinates
+                    neighbor['nearest_river_node_index'] = self.find_nearest_river_node_index(neighbor_coordinates)
+                    neighbor['sink_cell'] = True
+
+                    visited.append([x, y])
+                    visited.append([neighbor_coordinates])
+
     def simulate(self, steps=1):
         """ Simulate the rain flow process for the given number of steps.
         :param steps: Number of steps to iterate the rain flow process.
         """
+        # Stop simulation if total water remaining in the mesh is below some threshold
         for i in range(0, steps):
-            self.step_cells()
+            if self.total_water_level() < 500:
+                # print("Skipping simulation; majority of water has been drained")
+                return
+            else:
+                # print("Simulating rainflow; water is not fully drained.")
+                self.step_cells()
+
+    def total_water_level(self):
+        wl = 0
+        for y in self.mesh.values():
+            for x in y.values():
+                wl += x['current_water_level']
+        return wl
 
     @staticmethod
     def precision_round(number, precision):
