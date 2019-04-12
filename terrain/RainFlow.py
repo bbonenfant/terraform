@@ -21,7 +21,7 @@ class RainFlow:
         self._array_shape = tuple()
 
         self.setup()
-        self.fix_two_cycle_flow()
+        self.fix_cyclic_flow()
 
     def __repr__(self):
         """ Prints out a string representation of the water level for each cell in the terrain. """
@@ -116,12 +116,11 @@ class RainFlow:
 
                 # Sink cell (associated with a single closest river node to transfer water into)
                 if downhill_neighbor_face is None:
-                    nearest_river_node_index = self.find_nearest_river_node_index([x, y])
+                    nearest_river_node_index = self.find_nearest_river_node_index((x, y))
                     y_hash[round(y, mesh_precision)] = {'current_water_level': self.rainfall_rate,
                                                         'next_water_level': 0,
                                                         'index': (x_index, y_index),
-                                                        'downhill_neighbor': [round(x, mesh_precision),
-                                                                              round(y, mesh_precision)],
+                                                        'downhill_neighbor': None,
                                                         'desc_dir': normal,
                                                         'sink_cell': True,
                                                         'nearest_river_node_index': nearest_river_node_index}
@@ -130,8 +129,8 @@ class RainFlow:
                     y_hash[round(y, mesh_precision)] = {'current_water_level': self.rainfall_rate,
                                                         'next_water_level': 0,
                                                         'index': (x_index, y_index),
-                                                        'downhill_neighbor': [round(x_downhill_neighbor, mesh_precision),
-                                                                              round(y_downhill_neighbor, mesh_precision)],
+                                                        'downhill_neighbor': (round(x_downhill_neighbor, mesh_precision),
+                                                                              round(y_downhill_neighbor, mesh_precision)),
                                                         'desc_dir': normal,
                                                         'sink_cell': False,
                                                         'nearest_river_node_index': None}
@@ -139,51 +138,75 @@ class RainFlow:
         self.mesh = mesh
         return None
 
-    def fix_two_cycle_flow(self):
-        """ If 2-cycle cell references exist, set all nodes in the orbit as sink nodes and direct flows to nearest
-        river nodes. """
+    def path_to_river(self, coordinates, path=[]):
+        """ Returns an ordered list of the coordinate path to the river for this node.
+        :param coordinates: Ordered tuple of xy location of the cell in the grid to start the path at.
+        :param path: (1 x n) List of 2-tuples of cell locations leading to a sink node. """
+        path += [coordinates]
+        path = list(dict.fromkeys(path))
+
+        cell = self.mesh[coordinates[0]][coordinates[1]]
+        if cell['sink_cell']:
+            return path
+        else:
+            neighbor = cell['downhill_neighbor']
+            return self.path_to_river(neighbor, path)
+
+    def disconnect_cyclic_path_if_exists(self, coordinates, non_cyclic_cells, path=[]):
+            """ Disconnects .
+            :param coordinates: Tuple of coordinates to add to path of checked.
+            :param non_cyclic_cells: List of non-cyclic (eventually terminating) cells in the grid.
+            :param path: List of location tuples used to determine if a cycle has been reached. """
+            cell = self.mesh[coordinates[0]][coordinates[1]]
+            if cell['downhill_neighbor'] is None or coordinates in non_cyclic_cells:
+                return
+            else:
+                if coordinates in path:
+                    self.disconnect_cell(coordinates)
+                    return
+                else:
+                    path += [coordinates]
+                    neighbor = tuple(cell['downhill_neighbor'])
+                    return self.disconnect_cyclic_path_if_exists(neighbor, non_cyclic_cells, path)
+
+    def disconnect_cell(self, coordinates):
+        """ Set the cell at the given coordinates to be a terminating river cell.
+        :param coordinates: Tuple of location of cell to be marked as a river cell. """
+        cell = self.mesh[coordinates[0]][coordinates[1]]
+        if cell['downhill_neighbor'] is None:
+            return
+        else:
+            cell['downhill_neighbor'] = None
+            cell['nearest_river_node_index'] = self.find_nearest_river_node_index(coordinates)
+            cell['sink_cell'] = True
+
+    def fix_cyclic_flow(self):
+        """ Disconnect the minimum number of cells to remove any cycles that keep water oscillating in the mesh. """
         visited = []
         for x in self.mesh.keys():
             for y in self.mesh[x].keys():
                 # Skip already checked cells
-                if [x, y] in visited:
+                if (x, y) in visited:
                     continue
 
-                cell = self.mesh[x][y]
-                neighbor_coordinates = cell['downhill_neighbor']
+                # Disconnect the cell that is causing a cycle, if it exists.
+                self.disconnect_cyclic_path_if_exists((x, y), visited)
 
-                # Skip cells which do not have neighbors
-                if neighbor_coordinates is None:
-                    visited.append[[x, y]]
-                    continue
-                neighbor = self.mesh[neighbor_coordinates[0]][neighbor_coordinates[1]]
-                second_neighbor_coordinates = neighbor['downhill_neighbor']
+                # Mark cell as visited
+                visited += self.path_to_river((x, y))
 
-                # Break up 2-cycles if they exist
-                if [x, y] == second_neighbor_coordinates:
-                    print(f'Breaking up 2-cycle between [{x},{y}] and '
-                          f'[{neighbor_coordinates[0]},{neighbor_coordinates[1]}].')
-                    cell['downhill_neighbor'] = [x,y]
-                    cell['nearest_river_node_index'] = self.find_nearest_river_node_index([x, y])
-                    cell['sink_cell'] = True
-                    neighbor['downhill_neighbor'] = neighbor_coordinates
-                    neighbor['nearest_river_node_index'] = self.find_nearest_river_node_index(neighbor_coordinates)
-                    neighbor['sink_cell'] = True
-
-                    visited.append([x, y])
-                    visited.append([neighbor_coordinates])
+                # Remove list duplicates
+                visited = list(dict.fromkeys(visited))
 
     def simulate(self, steps=1):
         """ Simulate the rain flow process for the given number of steps.
         :param steps: Number of steps to iterate the rain flow process.
         """
-        # Stop simulation if total water remaining in the mesh is below some threshold
+        # Stop simulation if all water has drained out of the mesh
         for i in range(0, steps):
-            if self.total_water_level() < 500:
-                # print("Skipping simulation; majority of water has been drained")
+            if self.total_water_level() <= 0:
                 return
             else:
-                # print("Simulating rainflow; water is not fully drained.")
                 self.step_cells()
 
     def total_water_level(self):
